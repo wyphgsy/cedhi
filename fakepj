@@ -1,0 +1,160 @@
+package com.example.hello;
+ 
+import android.app.Application;
+import android.content.Context;
+import android.util.Base64;
+ 
+ 
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.DESKeySpec;
+ 
+import de.robv.android.xposed.IXposedHookLoadPackage;
+import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
+import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
+ 
+public class hook implements IXposedHookLoadPackage {
+ 
+ 
+    @Override
+    public void handleLoadPackage(LoadPackageParam loadPackageParam) throws Throwable {
+ 
+        if (loadPackageParam.packageName.equals("android")) {
+            XposedHelpers.findAndHookMethod(ClassLoader.class, "loadClass", String.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (param.hasThrowable()) return;
+                    Class<?> cls = (Class<?>) param.getResult();
+                    if(cls.getClassLoader().toString().contains("/data/fakeloc/libfakeloc.so")) {
+                        XposedBridge.log("hook libfakeloc.so");//注入到fakelocation模拟定位模块
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    Thread.sleep(3500);
+                                    XposedBridge.log("start");
+                                    XposedHelpers.findAndHookMethod("com.lerist.inject.utils.&#1935;", cls.getClassLoader(), "&#1927;", new XC_MethodHook() {
+                                        @Override
+                                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                                            super.beforeHookedMethod(param);
+                                        }
+                                        @Override
+                                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                                            param.setResult(true);
+                                        }
+                                    });
+                                    XposedHelpers.findAndHookMethod("com.lerist.inject.utils.&#1924;", cls.getClassLoader(), "&#1923;", java.lang.String.class, int.class, new XC_MethodHook() {
+                                        @Override
+                                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                                            param.args[0]="114.114.114.114";//把vef.api.fakeloc.cc改为114.114.114.114
+                                        }
+                                        @Override
+                                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                                            super.afterHookedMethod(param);
+                                        }
+                                    });
+                                }catch (Exception e){
+                                    e.printStackTrace();
+                                }
+                            }
+                        }).start();
+                    }
+                }
+            });
+        }
+ 
+        if (loadPackageParam.packageName.equals("com.lerist.fakelocation")) {
+ 
+            XposedHelpers.findAndHookMethod("com.stub.StubApp", loadPackageParam.classLoader, "attachBaseContext", Context.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    super.afterHookedMethod(param);
+                    Context context = (Context) param.args[0];
+                    ClassLoader classLoader =context.getClassLoader();
+                    XposedHelpers.findAndHookMethod("&#1926;.&#1942;$&#1423;", classLoader, "&#1921;", java.lang.String.class, new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                            param.args[0]="114.114.114.114";
+                        }
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            super.afterHookedMethod(param);
+                        }
+                    });//屏蔽向服务器获取配置
+ 
+                    Class<?> JSONClass =XposedHelpers.findClass("com.alibaba.fastjson.JSON",classLoader);
+                    XposedHelpers.findAndHookMethod("&#1921;.&#1923;.&#1921;.&#1920;.&#1921;.&#1568;", classLoader, "&#1423;", java.lang.String.class, java.lang.Class.class, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            if(param.args[0]=="key_userinfo"){
+                                String token="T";
+                                long proindate=System.currentTimeMillis()+200000000;
+                                long tokenTime=System.currentTimeMillis()+500000000;
+                                String key="1#"+Long.toString(proindate)+"#"+Long.toString(tokenTime)+"#"+token;
+                                String data="{\"key\":\""+desEncryptECB(key,"Lerist.T")+"\",\"loginName\":\"Lerist\",\"loginTime\":0,\"loginType\":\"email\",\"proindate\":"+Long.toString(proindate)+",\"stability\":0,\"token\":\""+token+"\",\"type\":1}";
+                                param.setResult(XposedHelpers.callStaticMethod(JSONClass,"parseObject",data,param.args[1]));
+                                return;
+                            }
+                            super.afterHookedMethod(param);
+                        }
+                    });//JSON.parseObject
+ 
+                    XposedHelpers.findAndHookMethod("&#1921;.&#1923;.&#1921;.&#1920;.&#1921;.&#1568;", classLoader, "&#1922;", android.content.Context.class, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            param.setResult(false);
+                        }
+                    });//hook isFirstRun
+ 
+                    XposedHelpers.findAndHookMethod("&#1921;.&#1923;.&#1568;.&#1920;.&#1568;", classLoader, "&#1921;", java.lang.String.class, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            param.setResult(true);
+                        }
+                    });//hook disabledFuncs
+ 
+                    XposedHelpers.findAndHookMethod("&#1921;.&#1923;.&#1568;.&#1920;.&#1568;", classLoader, "&#1568;", new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            param.setResult(null);
+                        }
+                    });//hook disabledApps
+ 
+                    XposedHelpers.findAndHookMethod("&#1921;.&#1923;.&#1568;.&#1568;.&#1423;", classLoader, "&#1925;", new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            param.setResult(true);
+                        }
+                    });
+                }
+            });
+        }}
+ 
+    public static String desEncryptECB(String content, String key) {
+        try {
+            Cipher cipher = Cipher.getInstance("DES/ECB/PKCS5Padding");
+            DESKeySpec desKeySpec = new DESKeySpec(key.getBytes());
+            SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("DES");
+            SecretKey secretKey = keyFactory.generateSecret(desKeySpec);
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+            byte[] result = cipher.doFinal(content.getBytes());
+            return Base64.encodeToString(result, Base64.DEFAULT);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+    public static String desECBDecrypt(byte[] data, String key) throws Exception {
+        Cipher cipher = Cipher.getInstance("DES/ECB/PKCS5Padding");
+        DESKeySpec desKeySpec = new DESKeySpec(key.getBytes());
+        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("DES");
+        SecretKey secretKey = keyFactory.generateSecret(desKeySpec);
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        byte[] encryptedData = Base64.decode(data, Base64.DEFAULT);
+        byte[] decryptedData = cipher.doFinal(encryptedData);
+        return new String(decryptedData);
+    }
+}
